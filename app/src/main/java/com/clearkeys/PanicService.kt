@@ -72,4 +72,37 @@ class PanicService : AccessibilityService() {
     private fun needsCleaning(text: String): Boolean {
         if (text.length < 3) return false
         val words = text.split(Regex("\\s+"))
-        val dict = cryptoEngine.getDictionary
+        val dict = cryptoEngine.getDictionary()
+        return words.any { word ->
+            val clean = word.trimEnd(',', '.', '!', '?', ':', ';', ')', ']').lowercase()
+            dict.containsKey(clean)
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "com.clearkeys.PANIC") activatePanic()
+        if (intent?.action == "com.clearkeys.STOP_PANIC") deactivatePanic()
+        return START_STICKY
+    }
+
+    private fun activatePanic() {
+        isPanicActive = true
+        processedNodes.clear()
+        Log.w(TAG, "🚨 PANIC MODE ACTIVATED")
+        serviceScope.launch {
+            delay(100)
+            rootInActiveWindow?.let { processNode(it); it.recycle() }
+        }
+        val vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        vibrator.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+    }
+
+    private fun deactivatePanic() {
+        isPanicActive = false
+        processedNodes.clear()
+        Log.w(TAG, "🚨 PANIC MODE DEACTIVATED")
+    }
+
+    override fun onInterrupt() { isPanicActive = false }
+    override fun onDestroy() { serviceScope.cancel(); super.onDestroy() }
+}
